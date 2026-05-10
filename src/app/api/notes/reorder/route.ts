@@ -18,22 +18,19 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: "updates must be an array." }, { status: 400 });
     }
 
-    const results = await Promise.all(
-      updates.map((update) =>
-        auth.supabase
-          .from("notes")
-          .update({
-            position: update.position,
-            subject_id: update.subject_id,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", update.id)
-          .eq("user_id", auth.user.id),
-      ),
-    );
-
-    const failed = results.find((result) => result.error);
-    if (failed?.error) throw failed.error;
+    // SQL to create in Supabase:
+    // CREATE OR REPLACE FUNCTION reorder_notes(updates jsonb)
+    // RETURNS void AS $$
+    // BEGIN
+    //   UPDATE notes SET
+    //     position = (update->>'position')::int,
+    //     subject_id = (update->>'subject_id')::uuid
+    //   FROM jsonb_array_elements(updates) AS update
+    //   WHERE notes.id = (update->>'id')::uuid;
+    // END;
+    // $$ LANGUAGE plpgsql;
+    const { error } = await auth.supabase.rpc("reorder_notes", { updates });
+    if (error) throw error;
 
     return NextResponse.json({ success: true });
   } catch (error) {

@@ -44,3 +44,11 @@ export type Note = {
   tags?: Tag[];
   revisions?: Revision[];
 };
+export type NotePatch = Partial<
+  Pick<
+    Note,
+    "title" | "subject_id" | "difficulty" | "summary" | "key_points" | "revision_questions" | "diagram_description"
+  >
+> & {
+  tags?: string[];
+};

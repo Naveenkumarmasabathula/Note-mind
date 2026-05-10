@@ -21,7 +21,7 @@ export async function POST(request: Request) {
         color: color || "#6366f1",
         note_count: 0,
       })
-      .select("*")
+      .select("id,user_id,name,color,note_count,created_at")
       .single();
 
     if (error) throw error;

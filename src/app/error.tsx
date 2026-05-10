@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { toast } from "sonner";
 
 export default function ErrorPage({
   error,
@@ -10,8 +11,7 @@ export default function ErrorPage({
   reset: () => void;
 }) {
   useEffect(() => {
-    // Keep console.error for observability.
-    console.error(error);
+    toast.error(error.message || "Something went wrong.");
   }, [error]);
 
   return (

@@ -28,6 +28,9 @@ const noteFields = [
   "diagram_description",
 ] as const;
 
+const NOTE_SELECT =
+  "id,user_id,subject_id,title,summary,key_points,revision_questions,difficulty,diagram_needed,diagram_description,source,is_manual,position,created_at,updated_at,subjects(id,name,color),tags(id,label,note_id)";
+
 export async function PATCH(request: Request, context: RouteContext) {
   try {
     const auth = await validateBearerToken(request);
@@ -46,7 +49,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       .update(updates)
       .eq("id", id)
       .eq("user_id", auth.user.id)
-      .select("*,subjects(*),tags(*)")
+      .select(NOTE_SELECT)
       .single();
 
     if (noteError) throw noteError;
@@ -66,7 +69,7 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     const { data: updatedNote, error: fetchError } = await auth.supabase
       .from("notes")
-      .select("*,subjects(*),tags(*)")
+      .select(NOTE_SELECT)
       .eq("id", id)
       .eq("user_id", auth.user.id)
       .single();

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 import { Progress } from "@/components/animate-ui/components/radix/progress";
 import { createClient } from "@/lib/supabase/client";
 import type { Note } from "@/lib/types";
@@ -16,11 +17,13 @@ export function RevisionPanel({ note }: { note: Note }) {
 
   async function saveRevision() {
     setIsSaving(true);
+    const toastId = toast.loading("Saving review...");
     const { data } = await supabase.auth.getUser();
     if (!data.user) {
       await supabase.auth.signOut();
       setIsSaving(false);
       router.replace("/login");
+      toast.error("Please sign in again.", { id: toastId });
       return;
     }
     const { error } = await supabase.from("revisions").insert({
@@ -33,10 +36,12 @@ export function RevisionPanel({ note }: { note: Note }) {
 
     if (error) {
       setIsSaving(false);
+      toast.error(error.message || "Unable to save review.", { id: toastId });
       return;
     }
 
     setIsSaving(false);
+    toast.success("Review saved.", { id: toastId });
     router.refresh();
   }
 

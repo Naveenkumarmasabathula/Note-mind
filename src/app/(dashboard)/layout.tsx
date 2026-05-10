@@ -9,13 +9,16 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   if (!userData.user) redirect("/login");
 
-  const [{ data: subjects = [] }, { data: notes = [] }] = await Promise.all([
-    supabase.from("subjects").select("*").eq("user_id", userData.user.id).order("name"),
+  const [{ data: subjects = [] }, notesResult] = await Promise.all([
+    supabase
+      .from("subjects")
+      .select("id,user_id,name,color,note_count,created_at")
+      .eq("user_id", userData.user.id)
+      .order("name"),
     supabase
       .from("notes")
-      .select("id")
-      .eq("user_id", userData.user.id)
-      .order("created_at", { ascending: false }),
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", userData.user.id),
   ]);
 
   return (
@@ -23,7 +26,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       email={userData.user.email}
       subjects={(subjects ?? []) as Subject[]}
       subjectsCount={(subjects ?? []).length}
-      totalNotes={(notes ?? []).length}
+      totalNotes={notesResult.count ?? 0}
     >
       {children}
     </DashboardShell>

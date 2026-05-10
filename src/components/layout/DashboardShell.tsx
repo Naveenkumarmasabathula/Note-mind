@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Header } from "@/components/layout/Header";
 import { MobileSubjectTabs, SubjectSidebar } from "@/components/subjects/SubjectSidebar";
+import { NotePanelProvider } from "@/context/NotePanelContext";
 import type { Subject } from "@/lib/types";
 
 type DashboardShellProps = {
@@ -31,13 +32,15 @@ export function DashboardShell({
         subjects={subjects}
       />
       <div className="flex min-h-screen flex-col lg:pl-72">
-        <Header
-          onOpenSidebar={() => setSidebarOpen(true)}
-          subjectsCount={subjectsCount}
-          totalNotes={totalNotes}
-        />
-        <MobileSubjectTabs subjects={subjects} />
-        <div className="min-h-0 flex-1">{children}</div>
+        <NotePanelProvider subjects={subjects}>
+          <Header
+            onOpenSidebar={() => setSidebarOpen(true)}
+            subjectsCount={subjectsCount}
+            totalNotes={totalNotes}
+          />
+          <MobileSubjectTabs subjects={subjects} />
+          <div className="min-h-0 flex-1">{children}</div>
+        </NotePanelProvider>
       </div>
     </div>
   );

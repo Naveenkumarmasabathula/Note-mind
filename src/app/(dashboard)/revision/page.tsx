@@ -1,16 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { RotateCcw, TimerReset } from "lucide-react";
+import { useTimer } from "@/context/TimerContext";
 
 const presets = [5, 10, 15, 25, 45, 60];
-
-type Lap = {
-  id: number;
-  lapTime: number;
-  totalTime: number;
-};
 
 export default function RevisionPage() {
   return (
@@ -28,48 +23,7 @@ export default function RevisionPage() {
 }
 
 function StopwatchPanel() {
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const startRef = useRef(0);
-  const elapsedRef = useRef(0);
-  const lastLapRef = useRef(0);
-  const [elapsed, setElapsed] = useState(0);
-  const [running, setRunning] = useState(false);
-  const [laps, setLaps] = useState<Lap[]>([]);
-
-  useEffect(() => () => clearCurrentInterval(intervalRef), []);
-
-  function startPause() {
-    if (running) {
-      clearCurrentInterval(intervalRef);
-      elapsedRef.current = elapsed;
-      setRunning(false);
-      return;
-    }
-
-    startRef.current = Date.now() - elapsedRef.current;
-    intervalRef.current = setInterval(() => {
-      const next = Date.now() - startRef.current;
-      elapsedRef.current = next;
-      setElapsed(next);
-    }, 35);
-    setRunning(true);
-  }
-
-  function reset() {
-    clearCurrentInterval(intervalRef);
-    startRef.current = 0;
-    elapsedRef.current = 0;
-    lastLapRef.current = 0;
-    setElapsed(0);
-    setRunning(false);
-    setLaps([]);
-  }
-
-  function lap() {
-    const lapTime = elapsed - lastLapRef.current;
-    lastLapRef.current = elapsed;
-    setLaps((current) => [{ id: current.length + 1, lapTime, totalTime: elapsed }, ...current]);
-  }
+  const { stopwatch } = useTimer();
 
   return (
     <section className="flex min-h-0 flex-col rounded-lg border border-[#2e2e2e] bg-[#1a1a2e] p-5">
@@ -78,40 +32,45 @@ function StopwatchPanel() {
         <TimerReset className="size-5 text-indigo-300" />
       </div>
       <div className="rounded-lg border border-[#2e2e2e] bg-[#0f0f0f] px-4 py-8 text-center">
-        <p className="font-mono text-4xl font-semibold tabular-nums sm:text-5xl">{formatStopwatch(elapsed)}</p>
+        <p className="font-mono text-4xl font-semibold tabular-nums sm:text-5xl">
+          {formatStopwatch(stopwatch.elapsedMs)}
+        </p>
       </div>
       <div className="mt-4 grid grid-cols-3 gap-3">
         <button
           className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold transition hover:bg-indigo-500 active:scale-[0.99]"
-          onClick={startPause}
+          onClick={stopwatch.isRunning ? stopwatch.pause : stopwatch.start}
+          type="button"
         >
-          {running ? "Pause" : "Start"}
+          {stopwatch.isRunning ? "Pause" : "Start"}
         </button>
         <button
           className="rounded-md border border-[#2e2e2e] px-4 py-2 text-sm text-neutral-300 transition hover:border-indigo-500 hover:text-white"
-          onClick={reset}
+          onClick={stopwatch.reset}
+          type="button"
         >
           Reset
         </button>
         <button
           className="rounded-md border border-[#2e2e2e] px-4 py-2 text-sm text-neutral-300 transition hover:border-indigo-500 hover:text-white disabled:opacity-60"
-          onClick={lap}
-          disabled={!elapsed}
+          onClick={stopwatch.lap}
+          disabled={!stopwatch.elapsedMs}
+          type="button"
         >
           Lap
         </button>
       </div>
       <div className="mt-5 flex-1 space-y-2 overflow-y-auto">
-        {laps.map((lap) => (
+        {stopwatch.laps.map((lap) => (
           <motion.div
             animate={{ opacity: 1, x: 0 }}
             className="grid grid-cols-3 rounded-md border border-[#2e2e2e] bg-[#111118] px-3 py-2 text-sm text-neutral-300"
             initial={{ opacity: 0, x: -20 }}
-            key={lap.id}
+            key={lap.lapNumber}
           >
-            <span>Lap {lap.id}</span>
-            <span className="font-mono">{formatStopwatch(lap.lapTime)}</span>
-            <span className="font-mono text-right">{formatStopwatch(lap.totalTime)}</span>
+            <span>Lap {lap.lapNumber}</span>
+            <span className="font-mono">{formatStopwatch(lap.lapTimeMs)}</span>
+            <span className="font-mono text-right">{formatStopwatch(lap.totalTimeMs)}</span>
           </motion.div>
         ))}
       </div>
@@ -120,59 +79,16 @@ function StopwatchPanel() {
 }
 
 function TimerPanel() {
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const initialRef = useRef(25 * 60);
-  const endRef = useRef(0);
-  const [secondsLeft, setSecondsLeft] = useState(25 * 60);
-  const [running, setRunning] = useState(false);
-  const [customMinutes, setCustomMinutes] = useState(25);
-  const [finished, setFinished] = useState(false);
-  const [toast, setToast] = useState(false);
-
-  useEffect(() => () => clearCurrentInterval(intervalRef), []);
-
-  function setMinutes(minutes: number) {
-    clearCurrentInterval(intervalRef);
-    const seconds = Math.max(1, minutes) * 60;
-    initialRef.current = seconds;
-    setSecondsLeft(seconds);
-    setRunning(false);
-    setFinished(false);
-  }
-
-  function startPause() {
-    if (running) {
-      clearCurrentInterval(intervalRef);
-      setRunning(false);
-      return;
-    }
-
-    setFinished(false);
-    endRef.current = Date.now() + secondsLeft * 1000;
-    intervalRef.current = setInterval(() => {
-      const next = Math.max(0, Math.ceil((endRef.current - Date.now()) / 1000));
-      setSecondsLeft(next);
-      if (next === 0) {
-        clearCurrentInterval(intervalRef);
-        setRunning(false);
-        setFinished(true);
-        setToast(true);
-        playBeep();
-        window.setTimeout(() => setToast(false), 2600);
-      }
-    }, 250);
-    setRunning(true);
-  }
-
-  function reset() {
-    clearCurrentInterval(intervalRef);
-    setSecondsLeft(initialRef.current);
-    setRunning(false);
-    setFinished(false);
-  }
-
+  const { timer } = useTimer();
+  const [customMinutes, setCustomMinutes] = useState(Math.round(timer.totalMs / 60000));
+  const totalSeconds = Math.ceil(timer.remainingMs / 1000);
+  const finished = totalSeconds === 0;
+  const progress = timer.totalMs ? timer.remainingMs / timer.totalMs : 0;
   const circumference = 2 * Math.PI * 92;
-  const progress = initialRef.current ? secondsLeft / initialRef.current : 0;
+
+  useEffect(() => {
+    setCustomMinutes(Math.round(timer.totalMs / 60000));
+  }, [timer.totalMs]);
 
   return (
     <section
@@ -210,7 +126,7 @@ function TimerPanel() {
                 : "font-mono text-5xl font-semibold tabular-nums"
             }
           >
-            {formatTimer(secondsLeft)}
+            {formatTimer(totalSeconds)}
           </p>
         </div>
       </div>
@@ -219,7 +135,8 @@ function TimerPanel() {
           <button
             className="rounded-full border border-[#2e2e2e] px-3 py-2 text-sm text-neutral-300 transition hover:border-indigo-500 hover:text-white active:scale-[0.99]"
             key={minutes}
-            onClick={() => setMinutes(minutes)}
+            onClick={() => timer.setDuration(minutes)}
+            type="button"
           >
             {minutes} min
           </button>
@@ -235,7 +152,8 @@ function TimerPanel() {
         />
         <button
           className="rounded-md border border-[#2e2e2e] px-4 text-sm text-neutral-300 transition hover:border-indigo-500 hover:text-white active:scale-[0.99]"
-          onClick={() => setMinutes(customMinutes)}
+          onClick={() => timer.setDuration(customMinutes)}
+          type="button"
         >
           Set
         </button>
@@ -243,27 +161,20 @@ function TimerPanel() {
       <div className="mt-4 grid grid-cols-2 gap-3">
         <button
           className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold transition hover:bg-indigo-500 active:scale-[0.99] disabled:opacity-60"
-          onClick={startPause}
-          disabled={!secondsLeft}
+          onClick={timer.isRunning ? timer.pause : timer.start}
+          disabled={!timer.remainingMs}
+          type="button"
         >
-          {running ? "Pause" : "Start"}
+          {timer.isRunning ? "Pause" : "Start"}
         </button>
         <button
           className="rounded-md border border-[#2e2e2e] px-4 py-2 text-sm text-neutral-300 transition hover:border-indigo-500 hover:text-white"
-          onClick={reset}
+          onClick={timer.reset}
+          type="button"
         >
           Reset
         </button>
       </div>
-      {toast ? (
-        <motion.div
-          animate={{ opacity: 1, y: 0 }}
-          className="absolute right-5 top-5 rounded-md bg-red-500 px-3 py-2 text-sm font-semibold text-white shadow-lg"
-          initial={{ opacity: 0, y: -10 }}
-        >
-          Time&apos;s up!
-        </motion.div>
-      ) : null}
     </section>
   );
 }
@@ -285,33 +196,4 @@ function formatTimer(totalSeconds: number) {
 
 function pad(value: number) {
   return String(value).padStart(2, "0");
-}
-
-function playBeep() {
-  try {
-    const audioContext = new AudioContext();
-    const oscillator = audioContext.createOscillator();
-    const gainNode = audioContext.createGain();
-
-    oscillator.type = "sine";
-    oscillator.frequency.value = 880;
-    gainNode.gain.value = 0.05;
-
-    oscillator.connect(gainNode);
-    gainNode.connect(audioContext.destination);
-
-    oscillator.start();
-    oscillator.stop(audioContext.currentTime + 0.2);
-
-    oscillator.onended = () => {
-      audioContext.close().catch(() => null);
-    };
-  } catch {
-    // Audio playback can be blocked by autoplay policies.
-  }
-}
-
-function clearCurrentInterval(ref: React.MutableRefObject<ReturnType<typeof setInterval> | null>) {
-  if (ref.current) clearInterval(ref.current);
-  ref.current = null;
 }
