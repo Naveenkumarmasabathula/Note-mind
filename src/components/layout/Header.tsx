@@ -52,6 +52,7 @@ export function Header({ totalNotes, subjectsCount, onOpenSidebar }: HeaderProps
   useEffect(() => {
     if (!searchOpen || !query.trim()) {
       setResults([]);
+      setIsSearching(false);
       return;
     }
 
@@ -63,12 +64,14 @@ export function Header({ totalNotes, subjectsCount, onOpenSidebar }: HeaderProps
         return;
       }
 
-      const searchQuery = query.trim();
+      const searchQuery = escapePostgrestLike(query.trim());
       const { data } = await supabase
         .from("notes")
         .select("id,title,summary,subject_id,difficulty,subjects(id,name,color),tags(id,label)")
         .eq("user_id", auth.user.id)
-        .or(`title.ilike.%${searchQuery}%,summary.ilike.%${searchQuery}%,tags.label.ilike.%${searchQuery}%,key_points.cs.{${searchQuery}}`)
+        .or(
+          `title.ilike.%${searchQuery}%,summary.ilike.%${searchQuery}%,tags.label.ilike.%${searchQuery}%`,
+        )
         .limit(10);
 
       const normalized = (data ?? []).map((item) => ({
@@ -121,10 +124,13 @@ export function Header({ totalNotes, subjectsCount, onOpenSidebar }: HeaderProps
               </div>
               {searchOpen ? (
                 <div className="absolute left-0 right-0 mt-2 rounded-lg border border-[#2e2e2e] bg-[#111111] p-2 shadow-xl">
+                  {!query.trim() ? (
+                    <p className="px-2 py-3 text-sm text-neutral-500">Start typing to search notes.</p>
+                  ) : null}
                   {isSearching ? (
                     <p className="px-2 py-3 text-sm text-neutral-400">Searching...</p>
                   ) : null}
-                  {!isSearching && !hasResults ? (
+                  {!isSearching && query.trim() && !hasResults ? (
                     <p className="px-2 py-3 text-sm text-neutral-500">No results yet.</p>
                   ) : null}
                   <div className="space-y-1">
@@ -176,6 +182,10 @@ export function Header({ totalNotes, subjectsCount, onOpenSidebar }: HeaderProps
       </div>
     </header>
   );
+}
+
+function escapePostgrestLike(value: string) {
+  return value.replace(/[%_,()]/g, "");
 }
 
 function Stat({ label, value }: { label: string; value: number }) {

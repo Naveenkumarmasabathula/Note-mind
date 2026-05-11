@@ -1,5 +1,6 @@
-import { NextResponse } from "next/server";
 import { validateBearerToken } from "@/lib/api-auth";
+import { apiError, apiSuccess } from "@/lib/api-response";
+import { parseOptionalString } from "@/lib/validation";
 
 type RouteContext = {
   params: Promise<{ id: string }>;
@@ -8,20 +9,29 @@ type RouteContext = {
 export async function PATCH(request: Request, context: RouteContext) {
   try {
     const auth = await validateBearerToken(request);
-    if ("error" in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
+    if ("error" in auth) return apiError(auth.error, auth.status, "UNAUTHORIZED");
 
     const { id } = await context.params;
-    const body = (await request.json()) as { name?: string; color?: string };
+    const body = (await request.json().catch(() => null)) as unknown;
+    const payload = body && typeof body === "object" ? (body as Record<string, unknown>) : null;
+    if (!payload) return apiError("Invalid JSON body.", 400, "BAD_REQUEST");
     const updates: Record<string, string> = {};
 
-    if (body.name !== undefined) {
-      const cleanName = body.name.trim();
+    if (payload.name !== undefined) {
+      const cleanName = parseOptionalString(payload.name, 80);
       if (!cleanName) {
-        return NextResponse.json({ error: "Subject name is required." }, { status: 400 });
+        return apiError("Subject name is required.", 400, "BAD_REQUEST");
       }
       updates.name = cleanName;
     }
-    if (body.color !== undefined) updates.color = body.color;
+    if (payload.color !== undefined) {
+      const color = parseOptionalString(payload.color, 20);
+      if (!color || !/^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(color)) {
+        return apiError("Color must be a valid hex value.", 400, "BAD_REQUEST");
+      }
+      updates.color = color;
+    }
+    if (!Object.keys(updates).length) return apiError("No valid fields to update.", 400, "BAD_REQUEST");
 
     const { error } = await auth.supabase
       .from("subjects")
@@ -31,19 +41,16 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     if (error) throw error;
 
-    return NextResponse.json({ success: true });
-  } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Unexpected error." },
-      { status: 500 },
-    );
+    return apiSuccess({});
+  } catch {
+    return apiError("Unexpected error.", 500, "INTERNAL_ERROR");
   }
 }
 
 export async function DELETE(request: Request, context: RouteContext) {
   try {
     const auth = await validateBearerToken(request);
-    if ("error" in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
+    if ("error" in auth) return apiError(auth.error, auth.status, "UNAUTHORIZED");
 
     const { id } = await context.params;
 
@@ -59,11 +66,8 @@ export async function DELETE(request: Request, context: RouteContext) {
 
     if (error) throw error;
 
-    return NextResponse.json({ success: true });
-  } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Unexpected error." },
-      { status: 500 },
-    );
+    return apiSuccess({});
+  } catch {
+    return apiError("Unexpected error.", 500, "INTERNAL_ERROR");
   }
 }

@@ -92,7 +92,7 @@ export function NotePanelProvider({
 
       const payload = await response.json().catch(() => null);
       if (!response.ok) {
-        toast.error(payload?.error || "Unable to save note.");
+        toast.error(payload?.error?.message || payload?.error || "Unable to save note.");
         return;
       }
 

@@ -94,7 +94,7 @@ export function NotesKanbanBoard({
 
       const data = await response.json().catch(() => null);
       if (!response.ok) {
-        throw new Error(data?.error || "Request failed.");
+        throw new Error(data?.error?.message || data?.error || "Request failed.");
       }
       return data;
     },
@@ -386,13 +386,6 @@ export function NotesKanbanBoard({
       const cleanSubjectName = subjectName.trim() || "General";
       if (!cleanTitle) throw new Error("Title is required.");
 
-      const { data: authData } = await supabase.auth.getUser();
-      if (!authData.user) {
-        await supabase.auth.signOut();
-        router.replace("/login");
-        throw new Error("You need to sign in again.");
-      }
-
       const previousColumns = columns;
       const previousSubjects = subjectList;
       const existingSubject = subjectList.find(
@@ -410,7 +403,7 @@ export function NotesKanbanBoard({
       if (!existingSubject) {
         tempSubject = {
           id: `temp-subject-${Date.now()}`,
-          user_id: authData.user.id,
+          user_id: "temp-user",
           name: cleanSubjectName,
           color: subjectColors[subjectList.length % subjectColors.length],
           note_count: 0,
@@ -422,7 +415,7 @@ export function NotesKanbanBoard({
 
       const tempNote: Note = {
         id: tempNoteId,
-        user_id: authData.user.id,
+        user_id: "temp-user",
         subject_id: tempSubject?.id ?? null,
         title: cleanTitle,
         summary,
@@ -459,32 +452,11 @@ export function NotesKanbanBoard({
 
       const toastId = toast.loading("Saving note...");
       try {
-        let finalSubject = existingSubject;
-        if (!existingSubject && tempSubject) {
-          const data = await apiFetch("/api/subjects", {
-            method: "POST",
-            body: JSON.stringify({ name: cleanSubjectName, color: tempSubject.color }),
-          });
-          const created = data.subject as Subject;
-          finalSubject = { ...created, note_count: (created.note_count ?? 0) + 1 };
-          setSubjectList((current) =>
-            current.map((item) => (item.id === tempSubject!.id ? finalSubject! : item)),
-          );
-          setColumns((current) =>
-            current.map((column) =>
-              column.id === tempSubject!.id
-                ? ({ ...column, id: finalSubject!.id, subject: finalSubject } as BoardColumn)
-                : column,
-            ),
-          );
-        }
-
-        const { data: insertedNote, error } = await supabase
-          .from("notes")
-          .insert({
-            user_id: authData.user.id,
-            subject_id: finalSubject?.id ?? null,
+        const data = await apiFetch("/api/notes", {
+          method: "POST",
+          body: JSON.stringify({
             title: cleanTitle,
+            subject: cleanSubjectName,
             summary,
             key_points: points.length ? points : [summary.slice(0, 140)],
             revision_questions: [],
@@ -493,20 +465,29 @@ export function NotesKanbanBoard({
             diagram_description: null,
             source: "manual",
             is_manual: true,
-            position: 0,
-            updated_at: new Date().toISOString(),
-          })
-          .select(
-            "id,user_id,subject_id,title,summary,key_points,revision_questions,difficulty,diagram_needed,diagram_description,source,is_manual,position,created_at,updated_at,subjects(id,name,color),tags(id,label,note_id)",
-          )
-          .single();
+            tags: [],
+          }),
+        });
+        const finalNote = data.note as Note;
 
-        if (error || !insertedNote) throw error || new Error("Unable to create note.");
-
-        const finalNote = {
-          ...insertedNote,
-          subjects: Array.isArray(insertedNote.subjects) ? insertedNote.subjects[0] ?? null : insertedNote.subjects,
-        } as Note;
+        if (!existingSubject && tempSubject && finalNote.subjects) {
+          const finalSubject = {
+            ...finalNote.subjects,
+            user_id: finalNote.user_id,
+            note_count: 1,
+            created_at: new Date().toISOString(),
+          };
+          setSubjectList((current) =>
+            current.map((item) => (item.id === tempSubject.id ? finalSubject : item)),
+          );
+          setColumns((current) =>
+            current.map((column) =>
+              column.id === tempSubject.id
+                ? ({ ...column, id: finalSubject.id, subject: finalSubject } as BoardColumn)
+                : column,
+            ),
+          );
+        }
 
         setColumns((current) =>
           current.map((column) => ({
@@ -522,7 +503,7 @@ export function NotesKanbanBoard({
         throw error;
       }
     },
-    [apiFetch, columns, router, subjectList, supabase],
+    [apiFetch, columns, subjectList],
   );
 
 
@@ -1192,4 +1173,3 @@ function buildColumns(notes: Note[], subjects: Subject[], selectedSubjectId: str
 function sortByPosition(a: Note, b: Note) {
   return (a.position ?? 0) - (b.position ?? 0);
 }
-

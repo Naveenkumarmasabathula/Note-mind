@@ -23,7 +23,10 @@ export async function validateBearerToken(request: Request): Promise<Authenticat
   }
 
   const authHeader = request.headers.get("authorization");
-  const token = authHeader?.replace("Bearer ", "").trim();
+  const token =
+    authHeader?.startsWith("Bearer ") || authHeader?.startsWith("bearer ")
+      ? authHeader.slice(7).trim()
+      : "";
 
   if (!token) {
     return { error: "No token provided", status: 401 };
@@ -42,7 +45,7 @@ export async function validateBearerToken(request: Request): Promise<Authenticat
   } = await supabase.auth.getUser(token);
 
   if (error || !user) {
-    return { error: `Unauthorized${error?.message ? `: ${error.message}` : ""}`, status: 401 };
+    return { error: "Unauthorized", status: 401 };
   }
 
   return { supabase, user };

@@ -1,141 +1,127 @@
-import { createClient } from '@supabase/supabase-js'
-import { NextResponse } from 'next/server'
+import { validateBearerToken } from "@/lib/api-auth";
+import { apiError, apiSuccess } from "@/lib/api-response";
+import {
+  asObject,
+  parseBoolean,
+  parseDifficulty,
+  parseJsonArray,
+  parseOptionalString,
+  parseRequiredString,
+} from "@/lib/validation";
+
+const NOTE_SELECT =
+  "id,user_id,subject_id,title,summary,key_points,revision_questions,difficulty,diagram_needed,diagram_description,source,is_manual,position,created_at,updated_at,subjects(id,name,color),tags(id,label,note_id)";
+
+const SUBJECT_COLORS: Record<string, string> = {
+  Programming: "#6366f1",
+  Mathematics: "#f59e0b",
+  Physics: "#3b82f6",
+  Chemistry: "#10b981",
+  Biology: "#22c55e",
+  History: "#f97316",
+  Economics: "#8b5cf6",
+  General: "#6b7280",
+};
 
 export async function POST(request: Request) {
   try {
-    const authHeader = request.headers.get('authorization')
-    const token = authHeader?.replace('Bearer ', '').trim()
+    const auth = await validateBearerToken(request);
+    if ("error" in auth) return apiError(auth.error, auth.status, "UNAUTHORIZED");
 
-    if (!token) {
-      return NextResponse.json({ error: 'No token provided' }, { status: 401 })
-    }
+    const body = asObject(await request.json().catch(() => null));
+    if (!body) return apiError("Invalid JSON body.", 400, "BAD_REQUEST");
 
-    // ✅ KEY FIX: create client with the user's token as global auth header
-    // This makes auth.uid() work correctly in RLS policies
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        global: {
-          headers: {
-            Authorization: `Bearer ${token}`
-          }
-        }
-      }
-    )
-
-    // Verify the token is valid
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token)
-
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const body = await request.json()
-    const {
-      title,
-      subject,
-      difficulty,
-      summary,
-      key_points,
-      diagram_needed,
-      diagram_description,
-      revision_questions,
-      tags,
-      source = 'chatgpt',
-      is_manual = false
-    } = body
+    const title = parseRequiredString(body.title, 180);
+    const summary = parseRequiredString(body.summary, 5000);
+    const subjectName = parseOptionalString(body.subject, 80);
+    const difficulty = parseDifficulty(body.difficulty) ?? "easy";
+    const keyPoints = parseJsonArray(body.key_points ?? [], 20, 280);
+    const revisionQuestions = parseJsonArray(body.revision_questions ?? [], 20, 280);
+    const diagramNeeded = parseBoolean(body.diagram_needed) ?? false;
+    const diagramDescription =
+      parseOptionalString(body.diagram_description, 5000, { allowEmpty: true }) ?? null;
+    const tags = parseJsonArray(body.tags ?? [], 20, 50);
+    const source = parseOptionalString(body.source, 32) ?? "chatgpt";
+    const isManual = parseBoolean(body.is_manual) ?? false;
 
     if (!title || !summary) {
-      return NextResponse.json({ error: 'title and summary are required' }, { status: 400 })
+      return apiError("title and summary are required.", 400, "BAD_REQUEST");
+    }
+    if (!keyPoints || !revisionQuestions || !tags) {
+      return apiError("Invalid key_points, revision_questions, or tags format.", 400, "BAD_REQUEST");
     }
 
-    // Look up subject or create it
-    let subject_id = null
-    if (subject) {
-      const { data: existingSubject } = await supabase
-        .from('subjects')
-        .select('id')
-        .eq('user_id', user.id)
-        .eq('name', subject)
-        .single()
+    let subjectId: string | null = null;
+    if (subjectName) {
+      const { data: existingSubject, error: existingSubjectError } = await auth.supabase
+        .from("subjects")
+        .select("id")
+        .eq("user_id", auth.user.id)
+        .eq("name", subjectName)
+        .maybeSingle();
+      if (existingSubjectError) throw existingSubjectError;
 
-      if (existingSubject) {
-        subject_id = existingSubject.id
+      if (existingSubject?.id) {
+        subjectId = existingSubject.id;
       } else {
-        const colors: Record<string, string> = {
-          'Programming': '#6366f1',
-          'Mathematics': '#f59e0b',
-          'Physics': '#3b82f6',
-          'Chemistry': '#10b981',
-          'Biology': '#22c55e',
-          'History': '#f97316',
-          'Economics': '#8b5cf6',
-          'General': '#6b7280',
-        }
-        const { data: newSubject, error: subjectError } = await supabase
-          .from('subjects')
+        const { data: newSubject, error: subjectError } = await auth.supabase
+          .from("subjects")
           .insert({
-            user_id: user.id,
-            name: subject,
-            color: colors[subject] || '#6366f1',
-            note_count: 0
+            user_id: auth.user.id,
+            name: subjectName,
+            color: SUBJECT_COLORS[subjectName] ?? "#6366f1",
+            note_count: 0,
           })
-          .select('id')
-          .single()
-
-        if (subjectError) {
-          console.error('Subject insert error:', subjectError)
-          return NextResponse.json({ error: subjectError.message }, { status: 500 })
-        }
-        subject_id = newSubject?.id
+          .select("id")
+          .single();
+        if (subjectError) throw subjectError;
+        subjectId = newSubject?.id ?? null;
       }
     }
 
-    // Insert note
-    const { data: note, error: noteError } = await supabase
-      .from('notes')
+    const { data: note, error: noteError } = await auth.supabase
+      .from("notes")
       .insert({
-        user_id: user.id,
-        subject_id,
+        user_id: auth.user.id,
+        subject_id: subjectId,
         title,
         summary,
-        key_points: key_points || [],
-        revision_questions: revision_questions || [],
-        difficulty: difficulty || 'easy',
-        diagram_needed: diagram_needed || false,
-        diagram_description: diagram_description || null,
+        key_points: keyPoints,
+        revision_questions: revisionQuestions,
+        difficulty,
+        diagram_needed: diagramNeeded,
+        diagram_description: diagramDescription,
         source,
-        is_manual
+        is_manual: isManual,
       })
-      .select()
-      .single()
+      .select(NOTE_SELECT)
+      .single();
 
-    if (noteError) {
-      console.error('Note insert error:', noteError)
-      return NextResponse.json({ error: noteError.message }, { status: 500 })
+    if (noteError || !note) throw noteError ?? new Error("Unable to create note.");
+
+    if (tags.length) {
+      const { error: tagsError } = await auth.supabase
+        .from("tags")
+        .insert(tags.map((label) => ({ note_id: note.id, label })));
+      if (tagsError) throw tagsError;
     }
 
-    // Insert tags
-    if (tags && tags.length > 0) {
-      await supabase
-        .from('tags')
-        .insert(tags.map((label: string) => ({ note_id: note.id, label })))
-    }
+    const { data: fullNote, error: fullNoteError } = await auth.supabase
+      .from("notes")
+      .select(NOTE_SELECT)
+      .eq("id", note.id)
+      .eq("user_id", auth.user.id)
+      .single();
 
-    // Increment subject note count
-    if (subject_id) {
-      await supabase
-        .rpc('increment_note_count', { subject_id_input: subject_id })
-    }
+    if (fullNoteError || !fullNote) throw fullNoteError ?? new Error("Unable to load created note.");
 
-    return NextResponse.json({ success: true, note_id: note.id })
-
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Unexpected error.'
-    console.error('POST /api/notes error:', message)
-    return NextResponse.json({
-      error: message
-    }, { status: 500 })
+    return apiSuccess({
+      note: {
+        ...fullNote,
+        subjects: Array.isArray(fullNote.subjects) ? fullNote.subjects[0] ?? null : fullNote.subjects,
+      },
+    }, 201);
+  } catch {
+    return apiError("Unexpected error.", 500, "INTERNAL_ERROR");
   }
 }
