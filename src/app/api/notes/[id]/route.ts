@@ -19,7 +19,7 @@ const NOTE_SELECT =
 export async function PATCH(request: Request, context: RouteContext) {
   try {
     const auth = await validateBearerToken(request);
-    if ("error" in auth) return apiError(auth.error, auth.status, "UNAUTHORIZED");
+    if ("error" in auth) return apiError(auth.error ?? "Unauthorized", auth.status ?? 401, "UNAUTHORIZED");
 
     const { id } = await context.params;
     const body = asObject(await request.json().catch(() => null));
@@ -116,7 +116,7 @@ export async function PATCH(request: Request, context: RouteContext) {
 export async function DELETE(request: Request, context: RouteContext) {
   try {
     const auth = await validateBearerToken(request);
-    if ("error" in auth) return apiError(auth.error, auth.status, "UNAUTHORIZED");
+    if ("error" in auth) return apiError(auth.error ?? "Unauthorized", auth.status ?? 401, "UNAUTHORIZED");
 
     const { id } = await context.params;
 

@@ -1,9 +1,14 @@
 import { redirect } from "next/navigation";
 import { DashboardShell } from "@/components/layout/DashboardShell";
+import { hasSupabaseEnv } from "@/lib/supabase/config";
 import { createClient } from "@/lib/supabase/server";
 import type { Subject } from "@/lib/types";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
+  if (!hasSupabaseEnv()) {
+    redirect("/login");
+  }
+
   const supabase = await createClient();
   const { data: userData } = await supabase.auth.getUser();
 

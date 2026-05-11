@@ -5,7 +5,7 @@ import { asObject, parseInteger, parseRequiredString } from "@/lib/validation";
 export async function POST(request: Request) {
   try {
     const auth = await validateBearerToken(request);
-    if ("error" in auth) return apiError(auth.error, auth.status, "UNAUTHORIZED");
+    if ("error" in auth) return apiError(auth.error ?? "Unauthorized", auth.status ?? 401, "UNAUTHORIZED");
 
     const body = asObject(await request.json().catch(() => null));
     if (!body) return apiError("Invalid JSON body.", 400, "BAD_REQUEST");

@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { NotesKanbanBoard } from "@/components/notes/NotesKanbanBoard";
+import { hasSupabaseEnv } from "@/lib/supabase/config";
 import { createClient } from "@/lib/supabase/server";
 import type { Note, Subject } from "@/lib/types";
 
@@ -11,6 +12,10 @@ const NOTE_SELECT =
   "id,user_id,subject_id,title,summary,key_points,revision_questions,difficulty,diagram_needed,diagram_description,source,is_manual,position,created_at,updated_at,subjects(id,name,color),tags(id,label,note_id)";
 
 export default async function DashboardPage({ searchParams }: DashboardPageProps) {
+  if (!hasSupabaseEnv()) {
+    redirect("/login");
+  }
+
   const supabase = await createClient();
   const { data: userData } = await supabase.auth.getUser();
 

@@ -5,7 +5,7 @@ import { parseOptionalString, parseRequiredString } from "@/lib/validation";
 export async function POST(request: Request) {
   try {
     const auth = await validateBearerToken(request);
-    if ("error" in auth) return apiError(auth.error, auth.status, "UNAUTHORIZED");
+    if ("error" in auth) return apiError(auth.error ?? "Unauthorized", auth.status ?? 401, "UNAUTHORIZED");
 
     const body = (await request.json().catch(() => null)) as unknown;
     const payload = body && typeof body === "object" ? (body as Record<string, unknown>) : null;

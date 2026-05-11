@@ -2,14 +2,13 @@
 
 import { createClient } from "@/lib/supabase/client";
 
-const supabase = createClient();
-
 type ClientApiOptions = {
   method?: "GET" | "POST" | "PATCH" | "DELETE";
   body?: unknown;
 };
 
 export async function clientApiFetch<T = unknown>(path: string, options: ClientApiOptions = {}) {
+  const supabase = createClient();
   const { data: sessionData } = await supabase.auth.getSession();
   const token = sessionData.session?.access_token;
 
