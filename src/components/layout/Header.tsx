@@ -184,7 +184,11 @@ export function Header({ totalNotes, subjectsCount, onOpenSidebar }: HeaderProps
   );
 }
 
-/** Remove PostgREST filter-special characters from a search token. */
+/**
+ * Remove PostgREST filter-special characters from a search token.
+ * Characters `%`, `_`, `,`, `(`, and `)` have meaning in PostgREST
+ * query strings and must not be passed through verbatim from user input.
+ */
 function sanitizePostgrestLike(value: string) {
   return value.replace(/[%_,()]/g, "");
 }

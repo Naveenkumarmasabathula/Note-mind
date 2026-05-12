@@ -49,6 +49,9 @@
 }
 
 :root {
+  /* System-font fallback stacks — Space Grotesk / JetBrains Mono load from
+     local cache or CDN at runtime; these definitions ensure readable text
+     even without the webfonts. */
   --font-sans: "Inter", "Space Grotesk", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   --font-geist-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   --background: #0f0f0f;

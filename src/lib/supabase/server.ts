@@ -16,8 +16,10 @@ export async function createClient() {
       "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJidWlsZC1wbGFjZWhvbGRlciJ9.AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
       {
         cookies: {
-          getAll() { return cookieStore.getAll(); },
-          setAll() { /* no-op for build placeholder */ },
+          // Both operations are no-ops for the build-time placeholder client;
+          // no real cookies exist during SSG prerendering.
+          getAll() { return []; },
+          setAll() { /* no-op */ },
         },
       },
     );
