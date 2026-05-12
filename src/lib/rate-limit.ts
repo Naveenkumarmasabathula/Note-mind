@@ -18,6 +18,14 @@ type RateLimitOptions = {
 
 export function checkRateLimit({ key, limit, windowMs }: RateLimitOptions) {
   const now = Date.now();
+
+  // Periodically purge expired entries to prevent unbounded Map growth.
+  if (windows.size > 500) {
+    for (const [k, v] of windows) {
+      if (v.resetAt <= now) windows.delete(k);
+    }
+  }
+
   const current = windows.get(key);
 
   if (!current || current.resetAt <= now) {

@@ -12,7 +12,8 @@ export function createClient() {
     // redirect unauthenticated users before any data fetching occurs.
     return createBrowserClient(
       "http://127.0.0.1:54321",
-      "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.build-placeholder",
+      // Three-segment dummy JWT: header.payload.signature — valid structure for build-time
+      "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJidWlsZC1wbGFjZWhvbGRlciJ9.AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
     );
   }
 

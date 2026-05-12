@@ -12,7 +12,8 @@ export async function createClient() {
     // in production when env vars are missing.
     return createServerClient(
       "http://127.0.0.1:54321",
-      "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.build-placeholder",
+      // Three-segment dummy JWT: header.payload.signature — valid structure for build-time
+      "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJidWlsZC1wbGFjZWhvbGRlciJ9.AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
       {
         cookies: {
           getAll() { return cookieStore.getAll(); },
