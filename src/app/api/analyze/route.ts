@@ -2,6 +2,7 @@ import { summarizeConversation } from "@/lib/groq";
 import { validateBearerToken } from "@/lib/api-auth";
 import { apiError, apiSuccess } from "@/lib/api-response";
 import { checkRateLimit, requestKey } from "@/lib/rate-limit";
+import { DEFAULT_SUBJECT_COLOR } from "@/lib/constants";
 import { asObject, parseDifficulty, parseOptionalString, parseRequiredString } from "@/lib/validation";
 
 export async function POST(request: Request) {
@@ -48,14 +49,15 @@ export async function POST(request: Request) {
         .insert({
           user_id: auth.user.id,
           name: subjectName,
-          color: "#6366f1",
+          color: DEFAULT_SUBJECT_COLOR,
           note_count: 0,
         })
         .select("id")
         .single();
 
       if (subjectError) throw subjectError;
-      subjectId = createdSubject?.id ?? null;
+      if (!createdSubject?.id) throw new Error("Unable to create subject.");
+      subjectId = createdSubject.id;
     }
 
     const { data: note, error: noteError } = await auth.supabase

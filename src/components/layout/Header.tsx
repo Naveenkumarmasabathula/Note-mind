@@ -188,6 +188,10 @@ export function Header({ totalNotes, subjectsCount, onOpenSidebar }: HeaderProps
  * Remove PostgREST filter-special characters from a search token.
  * Characters `%`, `_`, `,`, `(`, and `)` have meaning in PostgREST
  * query strings and must not be passed through verbatim from user input.
+ * Characters are stripped (not escaped) because PostgREST does not expose
+ * a supported escape syntax for all of these in `.or()` filter strings.
+ * Users searching for these characters will receive results for the
+ * surrounding term with those characters omitted.
  */
 function sanitizePostgrestLike(value: string) {
   return value.replace(/[%_,()]/g, "");

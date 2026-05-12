@@ -1,5 +1,6 @@
 import { validateBearerToken } from "@/lib/api-auth";
 import { apiError, apiSuccess } from "@/lib/api-response";
+import { DEFAULT_SUBJECT_COLOR, SUBJECT_COLORS } from "@/lib/constants";
 import {
   asObject,
   parseBoolean,
@@ -11,17 +12,6 @@ import {
 
 const NOTE_SELECT =
   "id,user_id,subject_id,title,summary,key_points,revision_questions,difficulty,diagram_needed,diagram_description,source,is_manual,position,created_at,updated_at,subjects(id,name,color),tags(id,label,note_id)";
-
-const SUBJECT_COLORS: Record<string, string> = {
-  Programming: "#6366f1",
-  Mathematics: "#f59e0b",
-  Physics: "#3b82f6",
-  Chemistry: "#10b981",
-  Biology: "#22c55e",
-  History: "#f97316",
-  Economics: "#8b5cf6",
-  General: "#6b7280",
-};
 
 export async function POST(request: Request) {
   try {
@@ -69,7 +59,7 @@ export async function POST(request: Request) {
           .insert({
             user_id: auth.user.id,
             name: subjectName,
-            color: SUBJECT_COLORS[subjectName] ?? "#6366f1",
+            color: SUBJECT_COLORS[subjectName] ?? DEFAULT_SUBJECT_COLOR,
             note_count: 0,
           })
           .select("id")

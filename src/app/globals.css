@@ -49,9 +49,10 @@
 }
 
 :root {
-  /* System-font fallback stacks — Space Grotesk / JetBrains Mono load from
-     local cache or CDN at runtime; these definitions ensure readable text
-     even without the webfonts. */
+  /* System-font fallback stacks used by the Tailwind theme (--font-sans and --font-mono).
+     The preferred webfonts (Space Grotesk, JetBrains Mono) can be served from a CDN
+     or added via <link> tags in layout.tsx once network access is available.
+     Browsers fall back to the next font in the stack automatically. */
   --font-sans: "Inter", "Space Grotesk", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   --font-geist-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   --background: #0f0f0f;

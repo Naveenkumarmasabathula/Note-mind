@@ -23,11 +23,13 @@ export async function validateBearerToken(request: Request): Promise<Authenticat
   }
 
   const authHeader = request.headers.get("authorization");
-  const token = authHeader
-    ? (authHeader.startsWith("Bearer ") || authHeader.startsWith("bearer ")
-        ? authHeader.slice(7).trim()
-        : "")
-    : "";
+  if (!authHeader) {
+    return { error: "No token provided", status: 401 };
+  }
+  const token =
+    authHeader.startsWith("Bearer ") || authHeader.startsWith("bearer ")
+      ? authHeader.slice(7).trim()
+      : "";
 
   if (!token) {
     return { error: "No token provided", status: 401 };

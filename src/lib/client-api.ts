@@ -12,7 +12,7 @@ export async function clientApiFetch<T = unknown>(path: string, options: ClientA
   const { data: sessionData } = await supabase.auth.getSession();
   const token = sessionData.session?.access_token;
 
-  if (!token) throw new Error("Please sign in again.");
+  if (!token) throw new Error("Authentication required. Please sign in again.");
 
   const response = await fetch(path, {
     method: options.method ?? "GET",
