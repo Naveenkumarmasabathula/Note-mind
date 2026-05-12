@@ -36,7 +36,8 @@ export async function createClient() {
             cookieStore.set(name, value, options),
           );
         } catch {
-          // Server Components cannot always set cookies; middleware handles refreshes.
+          // The `setAll` method cannot be called from a Server Component.
+          // This should be handled by middleware.
         }
       },
     },

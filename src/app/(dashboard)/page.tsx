@@ -17,16 +17,18 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   }
 
   const supabase = await createClient();
-  const { data: userData } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  if (!userData.user) redirect("/login");
+  if (!user) redirect("/login");
 
   const selectedSubjectId = searchParams?.subject ?? null;
 
   let notesQuery = supabase
     .from("notes")
     .select(NOTE_SELECT)
-    .eq("user_id", userData.user.id)
+    .eq("user_id", user.id)
     .order("position", { ascending: true })
     .order("created_at", { ascending: false })
     .limit(100);
@@ -40,7 +42,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     supabase
       .from("subjects")
       .select("id,user_id,name,color,note_count,created_at")
-      .eq("user_id", userData.user.id)
+      .eq("user_id", user.id)
       .order("name"),
   ]);
 
