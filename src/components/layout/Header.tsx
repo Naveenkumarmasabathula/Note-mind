@@ -64,7 +64,7 @@ export function Header({ totalNotes, subjectsCount, onOpenSidebar }: HeaderProps
         return;
       }
 
-      const searchQuery = escapePostgrestLike(query.trim());
+      const searchQuery = sanitizePostgrestLike(query.trim());
       const { data } = await supabase
         .from("notes")
         .select("id,title,summary,subject_id,difficulty,subjects(id,name,color),tags(id,label)")
@@ -184,7 +184,8 @@ export function Header({ totalNotes, subjectsCount, onOpenSidebar }: HeaderProps
   );
 }
 
-function escapePostgrestLike(value: string) {
+/** Remove PostgREST filter-special characters from a search token. */
+function sanitizePostgrestLike(value: string) {
   return value.replace(/[%_,()]/g, "");
 }
 

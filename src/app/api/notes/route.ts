@@ -75,7 +75,8 @@ export async function POST(request: Request) {
           .select("id")
           .single();
         if (subjectError) throw subjectError;
-        subjectId = newSubject?.id ?? null;
+        if (!newSubject?.id) throw new Error("Unable to create subject.");
+        subjectId = newSubject.id;
       }
     }
 

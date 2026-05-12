@@ -1,3 +1,13 @@
+/**
+ * In-process, in-memory rate limiter.
+ *
+ * ⚠️  Suitable for single-instance deployments only. In a serverless or
+ * multi-instance environment each instance maintains an independent counter,
+ * so the effective limit per user is `limit × instance-count`.
+ *
+ * For multi-instance production, replace the Map with a shared store
+ * (e.g. Redis / Upstash) and swap the implementation here.
+ */
 const windows = new Map<string, { count: number; resetAt: number }>();
 
 type RateLimitOptions = {
