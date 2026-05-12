@@ -64,7 +64,7 @@ export function NoteModal({ note, children }: { note: Note; children: React.Reac
             <section>
               <h3 className="mb-3 flex items-center gap-2 font-semibold text-white">
                 <GitBranch className="size-4 text-indigo-300" />
-                Diagram
+                Illustration
               </h3>
               <div
                 className="overflow-x-auto rounded-md border border-[#2e2e2e] bg-[#0f0f0f] p-4 text-neutral-200"
