@@ -1,32 +1,17 @@
-import { NextResponse } from "next/server";
 import { validateBearerToken } from "@/lib/api-auth";
+import { apiError, apiSuccess } from "@/lib/api-response";
+import {
+  asObject,
+  parseBoolean,
+  parseDifficulty,
+  parseJsonArray,
+  parseOptionalString,
+  parseUuidOrNull,
+} from "@/lib/validation";
 
 type RouteContext = {
   params: Promise<{ id: string }>;
 };
-
-type NoteUpdatePayload = {
-  title?: string;
-  subject_id?: string | null;
-  difficulty?: "easy" | "medium" | "hard";
-  summary?: string;
-  key_points?: string[];
-  revision_questions?: string[];
-  diagram_needed?: boolean;
-  diagram_description?: string | null;
-  tags?: string[];
-};
-
-const noteFields = [
-  "title",
-  "subject_id",
-  "difficulty",
-  "summary",
-  "key_points",
-  "revision_questions",
-  "diagram_needed",
-  "diagram_description",
-] as const;
 
 const NOTE_SELECT =
   "id,user_id,subject_id,title,summary,key_points,revision_questions,difficulty,diagram_needed,diagram_description,source,is_manual,position,created_at,updated_at,subjects(id,name,color),tags(id,label,note_id)";
@@ -34,14 +19,58 @@ const NOTE_SELECT =
 export async function PATCH(request: Request, context: RouteContext) {
   try {
     const auth = await validateBearerToken(request);
-    if ("error" in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
+    if ("error" in auth) return apiError(auth.error ?? "Unauthorized", auth.status ?? 401, "UNAUTHORIZED");
 
     const { id } = await context.params;
-    const body = (await request.json()) as NoteUpdatePayload;
+    const body = asObject(await request.json().catch(() => null));
+    if (!body) return apiError("Invalid JSON body.", 400, "BAD_REQUEST");
     const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
 
-    for (const field of noteFields) {
-      if (field in body) updates[field] = body[field];
+    if ("title" in body) {
+      const value = parseOptionalString(body.title, 180);
+      if (!value) return apiError("title is invalid.", 400, "BAD_REQUEST");
+      updates.title = value;
+    }
+    if ("summary" in body) {
+      const value = parseOptionalString(body.summary, 5000);
+      if (!value) return apiError("summary is invalid.", 400, "BAD_REQUEST");
+      updates.summary = value;
+    }
+    if ("subject_id" in body) {
+      const value = parseUuidOrNull(body.subject_id);
+      if (body.subject_id !== null && !value) return apiError("subject_id is invalid.", 400, "BAD_REQUEST");
+      updates.subject_id = value;
+    }
+    if ("difficulty" in body) {
+      const value = parseDifficulty(body.difficulty);
+      if (!value) return apiError("difficulty is invalid.", 400, "BAD_REQUEST");
+      updates.difficulty = value;
+    }
+    if ("key_points" in body) {
+      const value = parseJsonArray(body.key_points, 20, 280);
+      if (!value) return apiError("key_points is invalid.", 400, "BAD_REQUEST");
+      updates.key_points = value;
+    }
+    if ("revision_questions" in body) {
+      const value = parseJsonArray(body.revision_questions, 20, 280);
+      if (!value) return apiError("revision_questions is invalid.", 400, "BAD_REQUEST");
+      updates.revision_questions = value;
+    }
+    if ("diagram_needed" in body) {
+      const value = parseBoolean(body.diagram_needed);
+      if (value === null) return apiError("diagram_needed is invalid.", 400, "BAD_REQUEST");
+      updates.diagram_needed = value;
+    }
+    if ("diagram_description" in body) {
+      const value = parseOptionalString(body.diagram_description, 5000, { allowEmpty: true });
+      if (body.diagram_description !== null && value === null) {
+        return apiError("diagram_description is invalid.", 400, "BAD_REQUEST");
+      }
+      updates.diagram_description = value;
+    }
+
+    if (Object.keys(updates).length === 1) {
+      return apiError("No valid fields to update.", 400, "BAD_REQUEST");
     }
 
     const { data: note, error: noteError } = await auth.supabase
@@ -54,11 +83,13 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     if (noteError) throw noteError;
 
-    if (Array.isArray(body.tags)) {
+    if ("tags" in body) {
+      const tags = parseJsonArray(body.tags, 20, 50);
+      if (!tags) return apiError("tags is invalid.", 400, "BAD_REQUEST");
       await auth.supabase.from("tags").delete().eq("note_id", id);
-      if (body.tags.length) {
+      if (tags.length) {
         const { error: tagError } = await auth.supabase.from("tags").insert(
-          body.tags.map((label) => ({
+          tags.map((label) => ({
             note_id: id,
             label,
           })),
@@ -76,19 +107,16 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     if (fetchError) throw fetchError;
 
-    return NextResponse.json({ success: true, note: updatedNote ?? note });
-  } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Unexpected error." },
-      { status: 500 },
-    );
+    return apiSuccess({ note: updatedNote ?? note });
+  } catch {
+    return apiError("Unexpected error.", 500, "INTERNAL_ERROR");
   }
 }
 
 export async function DELETE(request: Request, context: RouteContext) {
   try {
     const auth = await validateBearerToken(request);
-    if ("error" in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
+    if ("error" in auth) return apiError(auth.error ?? "Unauthorized", auth.status ?? 401, "UNAUTHORIZED");
 
     const { id } = await context.params;
 
@@ -97,11 +125,8 @@ export async function DELETE(request: Request, context: RouteContext) {
 
     if (error) throw error;
 
-    return NextResponse.json({ success: true });
-  } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Unexpected error." },
-      { status: 500 },
-    );
+    return apiSuccess({});
+  } catch {
+    return apiError("Unexpected error.", 500, "INTERNAL_ERROR");
   }
 }

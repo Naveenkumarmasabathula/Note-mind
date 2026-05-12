@@ -1,5 +1,6 @@
-import { NextResponse } from "next/server";
 import { validateBearerToken } from "@/lib/api-auth";
+import { apiError, apiSuccess } from "@/lib/api-response";
+import { asObject, parseInteger, parseUuidOrNull } from "@/lib/validation";
 
 type ReorderUpdate = {
   id: string;
@@ -10,33 +11,34 @@ type ReorderUpdate = {
 export async function PATCH(request: Request) {
   try {
     const auth = await validateBearerToken(request);
-    if ("error" in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
+    if ("error" in auth) return apiError(auth.error ?? "Unauthorized", auth.status ?? 401, "UNAUTHORIZED");
 
-    const { updates } = (await request.json()) as { updates?: ReorderUpdate[] };
+    const body = asObject(await request.json().catch(() => null));
+    if (!body) return apiError("Invalid JSON body.", 400, "BAD_REQUEST");
+    const updatesRaw = body.updates;
 
-    if (!Array.isArray(updates)) {
-      return NextResponse.json({ error: "updates must be an array." }, { status: 400 });
+    if (!Array.isArray(updatesRaw) || updatesRaw.length > 500) {
+      return apiError("updates must be an array (max 500).", 400, "BAD_REQUEST");
     }
 
-    // SQL to create in Supabase:
-    // CREATE OR REPLACE FUNCTION reorder_notes(updates jsonb)
-    // RETURNS void AS $$
-    // BEGIN
-    //   UPDATE notes SET
-    //     position = (update->>'position')::int,
-    //     subject_id = (update->>'subject_id')::uuid
-    //   FROM jsonb_array_elements(updates) AS update
-    //   WHERE notes.id = (update->>'id')::uuid;
-    // END;
-    // $$ LANGUAGE plpgsql;
+    const updates: ReorderUpdate[] = [];
+    for (const item of updatesRaw) {
+      const update = asObject(item);
+      if (!update) return apiError("Invalid update payload.", 400, "BAD_REQUEST");
+      const id = parseUuidOrNull(update.id);
+      const position = parseInteger(update.position, 0, 100000);
+      const subjectId = parseUuidOrNull(update.subject_id);
+      if (!id || position === null || (update.subject_id !== null && !subjectId)) {
+        return apiError("Each update must include id, position and optional subject_id.", 400, "BAD_REQUEST");
+      }
+      updates.push({ id, position, subject_id: subjectId });
+    }
+
     const { error } = await auth.supabase.rpc("reorder_notes", { updates });
     if (error) throw error;
 
-    return NextResponse.json({ success: true });
-  } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Unexpected error." },
-      { status: 500 },
-    );
+    return apiSuccess({});
+  } catch {
+    return apiError("Unexpected error.", 500, "INTERNAL_ERROR");
   }
 }

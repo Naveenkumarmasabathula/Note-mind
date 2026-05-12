@@ -7,7 +7,22 @@ export async function createClient() {
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!url || !anonKey) {
-    throw new Error("Missing Supabase environment variables.");
+    // During `next build` (SSG prerendering) these vars may be absent.
+    // Page-level guards (hasSupabaseEnv) prevent data fetches from running
+    // in production when env vars are missing.
+    return createServerClient(
+      "http://127.0.0.1:54321",
+      // Three-segment dummy JWT: header.payload.signature — valid structure for build-time
+      "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJidWlsZC1wbGFjZWhvbGRlciJ9.AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+      {
+        cookies: {
+          // Both operations are no-ops for the build-time placeholder client;
+          // no real cookies exist during SSG prerendering.
+          getAll() { return []; },
+          setAll() { /* no-op */ },
+        },
+      },
+    );
   }
 
   return createServerClient(url, anonKey, {

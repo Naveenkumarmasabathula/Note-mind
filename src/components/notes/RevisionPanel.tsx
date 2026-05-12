@@ -5,12 +5,11 @@ import { useRouter } from "next/navigation";
 import { CheckCircle2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Progress } from "@/components/animate-ui/components/radix/progress";
-import { createClient } from "@/lib/supabase/client";
+import { clientApiFetch } from "@/lib/client-api";
 import type { Note } from "@/lib/types";
 
 export function RevisionPanel({ note }: { note: Note }) {
   const router = useRouter();
-  const supabase = createClient();
   const [score, setScore] = useState(3);
   const [isSaving, setIsSaving] = useState(false);
   const questions = note.revision_questions ?? [];
@@ -18,25 +17,18 @@ export function RevisionPanel({ note }: { note: Note }) {
   async function saveRevision() {
     setIsSaving(true);
     const toastId = toast.loading("Saving review...");
-    const { data } = await supabase.auth.getUser();
-    if (!data.user) {
-      await supabase.auth.signOut();
+    try {
+      await clientApiFetch("/api/revisions", {
+        method: "POST",
+        body: {
+          note_id: note.id,
+          score,
+          status: "reviewed",
+        },
+      });
+    } catch (error) {
       setIsSaving(false);
-      router.replace("/login");
-      toast.error("Please sign in again.", { id: toastId });
-      return;
-    }
-    const { error } = await supabase.from("revisions").insert({
-      note_id: note.id,
-      user_id: data.user.id,
-      score,
-      status: "reviewed",
-      revised_at: new Date().toISOString(),
-    });
-
-    if (error) {
-      setIsSaving(false);
-      toast.error(error.message || "Unable to save review.", { id: toastId });
+      toast.error(error instanceof Error ? error.message : "Unable to save review.", { id: toastId });
       return;
     }
 

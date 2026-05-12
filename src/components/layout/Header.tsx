@@ -52,6 +52,7 @@ export function Header({ totalNotes, subjectsCount, onOpenSidebar }: HeaderProps
   useEffect(() => {
     if (!searchOpen || !query.trim()) {
       setResults([]);
+      setIsSearching(false);
       return;
     }
 
@@ -63,12 +64,14 @@ export function Header({ totalNotes, subjectsCount, onOpenSidebar }: HeaderProps
         return;
       }
 
-      const searchQuery = query.trim();
+      const searchQuery = sanitizePostgrestLike(query.trim());
       const { data } = await supabase
         .from("notes")
         .select("id,title,summary,subject_id,difficulty,subjects(id,name,color),tags(id,label)")
         .eq("user_id", auth.user.id)
-        .or(`title.ilike.%${searchQuery}%,summary.ilike.%${searchQuery}%,tags.label.ilike.%${searchQuery}%,key_points.cs.{${searchQuery}}`)
+        .or(
+          `title.ilike.%${searchQuery}%,summary.ilike.%${searchQuery}%,tags.label.ilike.%${searchQuery}%`,
+        )
         .limit(10);
 
       const normalized = (data ?? []).map((item) => ({
@@ -121,10 +124,13 @@ export function Header({ totalNotes, subjectsCount, onOpenSidebar }: HeaderProps
               </div>
               {searchOpen ? (
                 <div className="absolute left-0 right-0 mt-2 rounded-lg border border-[#2e2e2e] bg-[#111111] p-2 shadow-xl">
+                  {!query.trim() ? (
+                    <p className="px-2 py-3 text-sm text-neutral-500">Start typing to search notes.</p>
+                  ) : null}
                   {isSearching ? (
                     <p className="px-2 py-3 text-sm text-neutral-400">Searching...</p>
                   ) : null}
-                  {!isSearching && !hasResults ? (
+                  {!isSearching && query.trim() && !hasResults ? (
                     <p className="px-2 py-3 text-sm text-neutral-500">No results yet.</p>
                   ) : null}
                   <div className="space-y-1">
@@ -176,6 +182,19 @@ export function Header({ totalNotes, subjectsCount, onOpenSidebar }: HeaderProps
       </div>
     </header>
   );
+}
+
+/**
+ * Remove PostgREST filter-special characters from a search token.
+ * Characters `%`, `_`, `,`, `(`, and `)` have meaning in PostgREST
+ * query strings and must not be passed through verbatim from user input.
+ * Characters are stripped (not escaped) because PostgREST does not expose
+ * a supported escape syntax for all of these in `.or()` filter strings.
+ * Users searching for these characters will receive results for the
+ * surrounding term with those characters omitted.
+ */
+function sanitizePostgrestLike(value: string) {
+  return value.replace(/[%_,()]/g, "");
 }
 
 function Stat({ label, value }: { label: string; value: number }) {

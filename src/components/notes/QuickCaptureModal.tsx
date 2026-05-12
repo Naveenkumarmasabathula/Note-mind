@@ -10,6 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/animate-ui/components/radix/dialog";
+import { clientApiFetch } from "@/lib/client-api";
 import { createClient } from "@/lib/supabase/client";
 import type { Difficulty, Subject } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -75,9 +76,6 @@ export function QuickCaptureModal() {
     setIsSaving(true);
     const toastId = toast.loading("Saving note...");
     try {
-      const { data: auth } = await supabase.auth.getUser();
-      if (!auth.user) throw new Error("Please sign in again.");
-
       const summary = text.trim();
       const points = summary
         .split(/\n+/)
@@ -85,13 +83,12 @@ export function QuickCaptureModal() {
         .filter(Boolean)
         .slice(0, 5);
 
-      const { data: note, error } = await supabase
-        .from("notes")
-        .insert({
-          user_id: auth.user.id,
-          subject_id: selectedSubject?.id ?? null,
-          title: summary,
+      await clientApiFetch("/api/notes", {
+        method: "POST",
+        body: {
+          title: summary.slice(0, 180),
           summary,
+          subject: selectedSubject?.name ?? "General",
           key_points: points.length ? points : [summary.slice(0, 140)],
           revision_questions: [],
           difficulty,
@@ -99,13 +96,9 @@ export function QuickCaptureModal() {
           diagram_description: null,
           source: "manual",
           is_manual: true,
-          position: 0,
-          updated_at: new Date().toISOString(),
-        })
-        .select("id")
-        .single();
-
-      if (error || !note) throw error || new Error("Unable to save note.");
+          tags: [],
+        },
+      });
 
       toast.success("Note captured.", { id: toastId });
       handleClose();
@@ -115,32 +108,21 @@ export function QuickCaptureModal() {
     } finally {
       setIsSaving(false);
     }
-  }, [difficulty, handleClose, router, selectedSubject, supabase, text]);
+  }, [difficulty, handleClose, router, selectedSubject, text]);
 
   const analyzeWithAI = useCallback(async () => {
     if (!text.trim()) return;
     setIsSaving(true);
     const toastId = toast.loading("Analyzing with AI...");
     try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const token = sessionData.session?.access_token;
-      if (!token) throw new Error("Please sign in again.");
-
-      const response = await fetch("/api/analyze", {
+      await clientApiFetch("/api/analyze", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
+        body: {
           text,
           subject: selectedSubject?.name,
           difficulty,
-        }),
+        },
       });
-
-      const payload = await response.json().catch(() => null);
-      if (!response.ok) throw new Error(payload?.error || "Unable to analyze note.");
 
       toast.success("Note analyzed.", { id: toastId });
       handleClose();
@@ -150,7 +132,7 @@ export function QuickCaptureModal() {
     } finally {
       setIsSaving(false);
     }
-  }, [difficulty, handleClose, router, selectedSubject, supabase, text]);
+  }, [difficulty, handleClose, router, selectedSubject, text]);
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>

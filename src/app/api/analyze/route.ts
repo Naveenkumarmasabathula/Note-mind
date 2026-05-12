@@ -1,27 +1,37 @@
-import { NextResponse } from "next/server";
 import { summarizeConversation } from "@/lib/groq";
 import { validateBearerToken } from "@/lib/api-auth";
-import type { Difficulty } from "@/lib/types";
+import { apiError, apiSuccess } from "@/lib/api-response";
+import { checkRateLimit, requestKey } from "@/lib/rate-limit";
+import { DEFAULT_SUBJECT_COLOR } from "@/lib/constants";
+import { asObject, parseDifficulty, parseOptionalString, parseRequiredString } from "@/lib/validation";
 
 export async function POST(request: Request) {
   try {
     const auth = await validateBearerToken(request);
-    if ("error" in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
+    if ("error" in auth) return apiError(auth.error ?? "Unauthorized", auth.status ?? 401, "UNAUTHORIZED");
 
-    const body = (await request.json()) as {
-      text?: string;
-      subject?: string;
-      difficulty?: Difficulty;
-    };
+    const body = asObject(await request.json().catch(() => null));
+    if (!body) return apiError("Invalid JSON body.", 400, "BAD_REQUEST");
 
-    const text = body.text?.trim();
-    if (!text) {
-      return NextResponse.json({ error: "Text is required." }, { status: 400 });
+    const limiter = checkRateLimit({
+      key: requestKey(request, auth.user.id, "analyze"),
+      limit: 20,
+      windowMs: 60_000,
+    });
+    if (!limiter.allowed) {
+      return apiError("Rate limit exceeded. Please retry shortly.", 429, "RATE_LIMITED");
     }
 
+    const text = parseRequiredString(body.text, 16000);
+    if (!text) {
+      return apiError("Text is required.", 400, "BAD_REQUEST");
+    }
+    const requestedSubject = parseOptionalString(body.subject, 80);
+    const requestedDifficulty = body.difficulty ? parseDifficulty(body.difficulty) : null;
+
     const result = await summarizeConversation([{ role: "user", text }]);
-    const subjectName = body.subject?.trim() || result.subject || "General";
-    const difficulty = body.difficulty ?? result.difficulty;
+    const subjectName = requestedSubject || result.subject || "General";
+    const difficulty = requestedDifficulty ?? result.difficulty;
 
     let subjectId: string | null = null;
     const { data: existingSubject } = await auth.supabase
@@ -39,14 +49,15 @@ export async function POST(request: Request) {
         .insert({
           user_id: auth.user.id,
           name: subjectName,
-          color: "#6366f1",
+          color: DEFAULT_SUBJECT_COLOR,
           note_count: 0,
         })
         .select("id")
         .single();
 
       if (subjectError) throw subjectError;
-      subjectId = createdSubject?.id ?? null;
+      if (!createdSubject?.id) throw new Error("Unable to create subject.");
+      subjectId = createdSubject.id;
     }
 
     const { data: note, error: noteError } = await auth.supabase
@@ -79,15 +90,8 @@ export async function POST(request: Request) {
       );
     }
 
-    if (subjectId) {
-      await auth.supabase.rpc("increment_note_count", { subject_id_input: subjectId });
-    }
-
-    return NextResponse.json({ success: true, note });
-  } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Unexpected error." },
-      { status: 500 },
-    );
+    return apiSuccess({ note }, 201);
+  } catch {
+    return apiError("Unexpected error.", 500, "INTERNAL_ERROR");
   }
 }
